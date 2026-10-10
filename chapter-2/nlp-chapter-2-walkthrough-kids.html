@@ -1,0 +1,904 @@
+<title>Teach Beep to Read</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fredoka:wght@500;600&display=swap">
+<style>
+/* Layout: a race track of steps on top, Beep the robot as a guide below it,
+   then one big friendly play area per step. */
+:root {
+  --bg: #F3F6FC;
+  --surface: #FFFFFF;
+  --ink: #1C2443;
+  --muted: #5B6488;
+  --line: #DCE2F0;
+  --accent: #1A9E8F;
+  --on-accent: #FFFFFF;
+  --accent-soft: #DDF4F0;
+  --sun: #FFE27A; --sun-bd: #E0B400;
+  --coral: #FFC9BF; --coral-bd: #E2604E;
+  --sky: #C9E4FF; --sky-bd: #3F86CC;
+  --leaf: #CDF2D5; --leaf-bd: #3E9E55;
+  --grape: #E6DDFF; --grape-bd: #7B5BE6;
+  --good: #178A4A;
+  --bad: #C2410C;
+  --display: "Fredoka", "Avenir Next Rounded", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Verdana", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10162B; --surface: #19213D; --ink: #EEF1FC; --muted: #A3ACCD; --line: #2E3963;
+    --accent: #4FD1BF; --on-accent: #0B1A1C; --accent-soft: #173D3A;
+    --sun: #4D4314; --sun-bd: #D8B93A; --coral: #4D2420; --coral-bd: #F08A78;
+    --sky: #17365A; --sky-bd: #6FB0F0; --leaf: #173D24; --leaf-bd: #5DC27A;
+    --grape: #2E2457; --grape-bd: #A891FF; --good: #7FE0A0; --bad: #FFA27F;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10162B; --surface: #19213D; --ink: #EEF1FC; --muted: #A3ACCD; --line: #2E3963;
+  --accent: #4FD1BF; --on-accent: #0B1A1C; --accent-soft: #173D3A;
+  --sun: #4D4314; --sun-bd: #D8B93A; --coral: #4D2420; --coral-bd: #F08A78;
+  --sky: #17365A; --sky-bd: #6FB0F0; --leaf: #173D24; --leaf-bd: #5DC27A;
+  --grape: #2E2457; --grape-bd: #A891FF; --good: #7FE0A0; --bad: #FFA27F;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 18px; line-height: 1.55; }
+.wrap { max-width: 760px; margin: 0 auto; padding-inline: 18px; padding-block: 24px 72px; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, p, ul { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+code { font-family: var(--body); font-weight: 700; background: var(--accent-soft); padding: 1px 7px; border-radius: 6px; }
+
+.top { display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font-family: var(--display); font-weight: 600; font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--display); font-weight: 600; font-size: clamp(2rem, 7vw, 2.8rem); line-height: 1.05; text-wrap: balance; }
+.sub { color: var(--muted); max-width: 58ch; }
+
+/* race track */
+.track { position: relative; padding-block: 6px 2px; }
+.track ol { list-style: none; margin: 0; padding: 0; display: flex; justify-content: space-between; position: relative; z-index: 1; }
+.track::before { content: ""; position: absolute; left: 22px; right: 22px; top: 28px; height: 6px; border-radius: 3px; background: var(--line); }
+.track .fill { position: absolute; left: 22px; top: 28px; height: 6px; border-radius: 3px; background: var(--accent); transition: width 0.5s ease; }
+.track button { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--line); background: var(--surface); font-family: var(--display); font-weight: 600; font-size: 1.05rem; display: grid; place-items: center; transition: transform 0.2s, background 0.2s, border-color 0.2s; }
+.track button.done { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.track button[aria-current="step"] { border-color: var(--accent); transform: scale(1.15); box-shadow: 0 0 0 5px var(--accent-soft); }
+.track button[aria-current="step"].done { color: var(--on-accent); }
+.stepname { text-align: center; font-family: var(--display); font-weight: 600; color: var(--muted); font-size: 0.95rem; margin-top: 6px; }
+
+/* Beep */
+.guide { display: flex; gap: 14px; align-items: flex-end; }
+.beep { width: 86px; flex: 0 0 86px; }
+.beep svg { width: 100%; height: auto; display: block; overflow: visible; }
+.bubble { position: relative; background: var(--surface); border: 2px solid var(--line); border-radius: 18px; padding: 12px 16px; font-family: var(--display); font-weight: 500; font-size: 1.15rem; line-height: 1.35; min-width: 0; flex: 1; margin-bottom: 16px; }
+.bubble::before { content: ""; position: absolute; left: -11px; bottom: 16px; width: 18px; height: 18px; background: var(--surface); border-left: 2px solid var(--line); border-bottom: 2px solid var(--line); transform: rotate(45deg); border-bottom-left-radius: 4px; }
+.r-body { fill: var(--accent); }
+.r-face { fill: var(--surface); }
+.r-ink { fill: var(--ink); }
+.r-line { stroke: var(--ink); stroke-width: 3; fill: none; stroke-linecap: round; }
+.r-glow { fill: var(--sun-bd); }
+.r-cheek { fill: var(--coral-bd); opacity: 0.45; }
+.beep .m-happy, .beep .m-oops, .beep .e-happy { display: none; }
+.beep.happy .m-idle, .beep.oops .m-idle { display: none; }
+.beep.happy .m-happy { display: inline; }
+.beep.oops .m-oops { display: inline; }
+.beep.happy .e-open { display: none; }
+.beep.happy .e-happy { display: inline; }
+
+/* step */
+.step { display: flex; flex-direction: column; gap: 20px; }
+h2 { font-family: var(--display); font-weight: 600; font-size: 1.8rem; line-height: 1.1; }
+.lede { max-width: 60ch; }
+.card { background: var(--surface); border: 2px solid var(--line); border-radius: 20px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.label { font-family: var(--display); font-weight: 600; font-size: 0.9rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); }
+.q { font-weight: 700; font-size: 1.1rem; }
+.quote { background: var(--accent-soft); border-radius: 12px; padding: 10px 14px; overflow-wrap: anywhere; }
+.opts { display: flex; flex-wrap: wrap; gap: 10px; }
+.opts button { background: var(--surface); border: 3px solid var(--line); border-radius: 16px; padding: 10px 18px; font-family: var(--display); font-weight: 600; font-size: 1.1rem; transition: transform 0.15s, border-color 0.15s; }
+.opts button:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-2px); }
+.opts button:disabled { cursor: default; opacity: 0.5; }
+.opts button.right { border-color: var(--good); color: var(--good); opacity: 1; }
+.opts button.wrong { border-color: var(--bad); color: var(--bad); opacity: 1; }
+.fb { font-size: 1.02rem; }
+.fb b.ok { color: var(--good); } .fb b.no { color: var(--bad); }
+
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; align-items: baseline; }
+.count { font-family: var(--display); font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.raw { font-size: 1.05rem; line-height: 1.7; overflow-wrap: anywhere; }
+.sents { display: flex; flex-direction: column; gap: 10px; }
+.sent { border: 2px dashed var(--line); border-radius: 14px; padding: 10px 14px; }
+.sent .n { font-family: var(--display); font-weight: 600; font-size: 0.85rem; color: var(--muted); display: block; }
+.pieces { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.p { display: inline-block; font-size: 1.02rem; font-weight: 700; padding: 6px 11px; border-radius: 10px; border: 2px solid var(--line); background: var(--bg); overflow-wrap: anywhere; }
+.p.dot { border-style: dashed; color: var(--muted); }
+.p.sun { background: var(--sun); border-color: var(--sun-bd); }
+.p.skip { text-decoration: line-through; opacity: 0.35; }
+.rowlabel { font-family: var(--display); font-weight: 600; color: var(--muted); font-size: 0.95rem; }
+.cut { display: inline-block; color: var(--coral-bd); }
+.stack { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.stack .was { font-size: 0.8rem; color: var(--muted); padding-left: 3px; }
+.sticker { font-family: var(--display); font-weight: 600; font-size: 0.78rem; padding: 2px 8px; border-radius: 999px; border: 2px solid; }
+.t-name { background: var(--grape); border-color: var(--grape-bd); }
+.t-thing { background: var(--sky); border-color: var(--sky-bd); }
+.t-action { background: var(--leaf); border-color: var(--leaf-bd); }
+.t-num, .t-desc { background: var(--sun); border-color: var(--sun-bd); }
+.t-other { background: var(--surface); border-color: var(--line); }
+button.p { cursor: pointer; }
+button.p[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 2px; }
+.detail { min-height: 1.6em; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; }
+.group { display: inline-flex; flex-direction: column; gap: 5px; padding: 6px 8px 8px; border-radius: 16px; background: var(--grape); border: 3px solid var(--grape-bd); }
+.group .badge { font-family: var(--display); font-weight: 600; font-size: 0.85rem; }
+.group .gp { display: flex; gap: 6px; flex-wrap: wrap; }
+.group .p { background: var(--surface); }
+.looks { display: flex; flex-direction: column; gap: 12px; }
+.look { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.arrow { color: var(--muted); font-family: var(--display); font-weight: 600; font-size: 0.95rem; }
+
+.btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 16px; padding: 13px 22px; font-family: var(--display); font-weight: 600; font-size: 1.15rem; box-shadow: 0 4px 0 color-mix(in srgb, var(--accent) 60%, var(--ink)); transition: transform 0.12s, box-shadow 0.12s; }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 60%, var(--ink)); }
+.btn.ghost { background: transparent; color: var(--accent); box-shadow: none; border: 3px solid var(--line); padding: 10px 18px; }
+
+.notice { display: flex; flex-direction: column; gap: 8px; }
+.notice ul { padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+
+.own { display: flex; flex-direction: column; gap: 10px; }
+.own label { font-family: var(--display); font-weight: 600; font-size: 1.1rem; }
+.own input { font: inherit; width: 100%; padding: 12px 14px; border-radius: 14px; border: 3px solid var(--line); background: var(--surface); color: var(--ink); }
+.own input:focus { border-color: var(--accent); outline: none; }
+.cap { font-size: 0.92rem; color: var(--muted); }
+.codebox { background: var(--bg); border: 2px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; min-width: 0; }
+.codebox pre { margin: 0; padding: 12px 14px; overflow-x: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; line-height: 1.6; }
+.codebox .copy { align-self: flex-end; margin: 0 8px 8px; font-family: var(--display); font-weight: 600; font-size: 0.9rem; padding: 4px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); border: 0; }
+
+.finish { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.finish .card { gap: 6px; }
+.finish .num { font-family: var(--display); font-weight: 600; color: var(--accent); }
+.finish h3 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 1.2rem; }
+@media (max-width: 560px) { .finish { grid-template-columns: 1fr; } }
+
+.foot { display: flex; justify-content: space-between; gap: 10px; }
+
+@media (max-width: 480px) {
+  .track button { width: 36px; height: 36px; font-size: 0.95rem; }
+  .track::before, .track .fill { top: 24px; left: 18px; }
+  .track::before { right: 18px; }
+  .beep { width: 70px; flex-basis: 70px; }
+  .bubble { font-size: 1.05rem; }
+}
+
+/* motion */
+@media (prefers-reduced-motion: no-preference) {
+  .beep svg { animation: bob 3s ease-in-out infinite; }
+  .beep.happy svg { animation: hop 0.6s ease-out 2; }
+  .beep.oops svg { animation: tilt 0.7s ease-in-out 1; }
+  .r-glow { animation: glow 1.6s ease-in-out infinite; }
+  .r-eyes { animation: blink 4s infinite; transform-origin: 50% 46%; transform-box: fill-box; }
+  .bubble.talk { animation: talk 0.35s ease-out; }
+  .pop > * { animation: popin 0.38s cubic-bezier(.3,1.6,.5,1) both; animation-delay: calc(var(--i, 0) * 35ms); }
+  .p.skip.fly { animation: skipit 0.6s ease-out both; animation-delay: calc(var(--i, 0) * 35ms); }
+  .cut.fall { animation: fall 0.7s ease-in both; animation-delay: calc(0.35s + var(--i, 0) * 45ms); }
+  .flip { animation: flip 0.5s ease-out both; animation-delay: calc(0.3s + var(--i, 0) * 45ms); }
+  .sticker.drop { animation: drop 0.45s cubic-bezier(.3,1.5,.5,1) both; animation-delay: calc(0.15s + var(--i, 0) * 40ms); }
+  .group.glue { animation: glue 0.6s cubic-bezier(.3,1.6,.5,1) both; animation-delay: calc(var(--i, 0) * 60ms); }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  @keyframes hop { 0% { transform: translateY(0); } 40% { transform: translateY(-16px) rotate(-4deg); } 100% { transform: translateY(0); } }
+  @keyframes tilt { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-9deg); } 65% { transform: rotate(6deg); } }
+  @keyframes glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+  @keyframes talk { from { transform: scale(0.96); } to { transform: none; } }
+  @keyframes popin { from { transform: translateY(8px) scale(0.7); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes skipit { 0% { opacity: 1; transform: none; text-decoration-color: transparent; } 40% { transform: translateY(-6px) rotate(-6deg); } 100% { opacity: 0.35; transform: none; } }
+  @keyframes fall { 0% { transform: none; opacity: 1; } 100% { transform: translateY(26px) rotate(25deg); opacity: 0; } }
+  @keyframes flip { 0% { transform: rotateX(90deg); } 100% { transform: none; } }
+  @keyframes drop { from { transform: translateY(-16px) rotate(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes glue { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+}
+.cut.gone { display: none; }
+@media (prefers-reduced-motion: reduce) { .cut.fall { display: none; } }
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <span class="eyebrow">A game about how computers read</span>
+    <h1>Teach Beep to read</h1>
+    <p class="sub">Beep is a robot who cannot read yet. To a computer, words are just one long line of letters. Help Beep read a runner's note, one step at a time.</p>
+  </div>
+
+  <nav class="track" aria-label="Steps">
+    <div class="fill" id="fill"></div>
+    <ol id="track"></ol>
+    <p class="stepname" id="stepname"></p>
+  </nav>
+
+  <div class="guide">
+    <div class="beep" id="beep" aria-hidden="true">
+      <svg viewBox="0 0 100 112">
+        <line x1="50" y1="6" x2="50" y2="20" class="r-line"/>
+        <circle cx="50" cy="7" r="6" class="r-glow"/>
+        <rect x="14" y="20" width="72" height="58" rx="20" class="r-body"/>
+        <rect x="22" y="28" width="56" height="42" rx="14" class="r-face"/>
+        <g class="r-eyes">
+          <g class="e-open"><circle cx="39" cy="46" r="5" class="r-ink"/><circle cx="61" cy="46" r="5" class="r-ink"/></g>
+          <g class="e-happy"><path d="M33 48 Q39 40 45 48" class="r-line"/><path d="M55 48 Q61 40 67 48" class="r-line"/></g>
+        </g>
+        <circle cx="30" cy="57" r="4" class="r-cheek"/><circle cx="70" cy="57" r="4" class="r-cheek"/>
+        <path class="m-idle r-line" d="M43 59 Q50 64 57 59"/>
+        <path class="m-happy r-line" d="M40 57 Q50 68 60 57"/>
+        <circle class="m-oops r-ink" cx="50" cy="60" r="3.5"/>
+        <rect x="30" y="82" width="40" height="22" rx="9" class="r-body"/>
+        <rect x="8" y="84" width="14" height="8" rx="4" class="r-body"/>
+        <rect x="78" y="84" width="14" height="8" rx="4" class="r-body"/>
+      </svg>
+    </div>
+    <p class="bubble" id="bubble" aria-live="polite"></p>
+  </div>
+
+  <section class="step" id="step-1" aria-labelledby="h1s">
+    <h2 id="h1s">Cut it into pieces</h2>
+    <p class="lede">Beep sees one long line of letters. First we cut it into sentences. Then we cut each sentence into words. Each little piece has a grown up name, a <b>token</b>.</p>
+    <div class="card" data-guess="1">
+      <span class="label">Guess first</span>
+      <p class="q">The note says the runner wants to finish in 3:25. Does Beep cut <code>3:25</code> into one piece or three?</p>
+      <div class="opts"></div><p class="fb"></p>
+    </div>
+    <div class="card" id="stage-1"></div>
+    <div class="notice" id="notice-1" hidden>
+      <span class="label">Did you see?</span>
+      <ul><li><code>3:25</code> stayed in one piece, because it is a time.</li><li><code>I'm</code> got cut into <code>I</code> and <code>'m</code>.</li></ul>
+    </div>
+    <div class="card own" data-own="1"></div>
+  </section>
+
+  <section class="step" id="step-2" aria-labelledby="h2s" hidden>
+    <h2 id="h2s">Skip the boring words</h2>
+    <p class="lede">Words like <b>the</b>, <b>am</b> and <b>to</b> show up in almost every sentence. They do not tell Beep what the note is about, so we skip them. We skip the dots too.</p>
+    <div class="card" data-guess="2">
+      <span class="label">Guess first</span>
+      <p class="q">All four words are in the note. One of them sneaks past. Which one?</p>
+      <div class="opts"></div><p class="fb"></p>
+    </div>
+    <div class="card" id="stage-2"></div>
+    <div class="notice" id="notice-2" hidden>
+      <span class="label">Did you see?</span>
+      <ul><li><code>I</code> sneaked past because it starts with a capital letter. Beep's list of boring words is all lowercase.</li></ul>
+    </div>
+    <div class="card own" data-own="2"></div>
+  </section>
+
+  <section class="step" id="step-3" aria-labelledby="h3s" hidden>
+    <h2 id="h3s">Chop off the endings</h2>
+    <p class="lede"><b>Run</b> and <b>running</b> mean almost the same thing. Chopping the ends off words makes them match. It is fast, but a little messy.</p>
+    <div class="card" data-guess="3">
+      <span class="label">Guess first</span>
+      <p class="q">What does Beep turn <code>average</code> into?</p>
+      <div class="opts"></div><p class="fb"></p>
+    </div>
+    <div class="card" id="stage-3"></div>
+    <div class="notice" id="notice-3" hidden>
+      <span class="label">Did you see?</span>
+      <ul><li><code>running</code> became <code>run</code>, so now it matches <code>run</code>.</li><li><code>average</code> became <code>averag</code>. That is not a real word, and Beep does not mind.</li></ul>
+    </div>
+    <div class="card own" data-own="3"></div>
+  </section>
+
+  <section class="step" id="step-4" aria-labelledby="h4s" hidden>
+    <h2 id="h4s">Look it up in the dictionary</h2>
+    <p class="lede">Chopping can make fake words. This time Beep looks each word up in a dictionary, so it always gets a real word back. But Beep needs a hint about what kind of word it is.</p>
+    <div class="card" data-guess="4">
+      <span class="label">Guess first</span>
+      <p class="q">Beep looks up <code>training</code> with no hint. What does it get back?</p>
+      <div class="opts"></div><p class="fb"></p>
+    </div>
+    <div class="card" id="stage-4"></div>
+    <div class="notice" id="notice-4" hidden>
+      <span class="label">Did you see?</span>
+      <ul><li>With no hint, Beep thinks every word is a thing, like "a training". Tell Beep it is an action, and <code>training</code> becomes <code>train</code>.</li></ul>
+    </div>
+    <div class="card own" data-own="4"></div>
+  </section>
+
+  <section class="step" id="step-5" aria-labelledby="h5s" hidden>
+    <h2 id="h5s">Give each word a job</h2>
+    <p class="lede">Some words are names. Some are actions. Some are numbers. Beep puts a sticker on each word to show what job it does.</p>
+    <div class="card" data-guess="5">
+      <span class="label">Guess first</span>
+      <p class="q">In "will get me there", <code>get</code> is an action. Which sticker does Beep give it?</p>
+      <div class="opts"></div><p class="fb"></p>
+    </div>
+    <div class="card" id="stage-5"></div>
+    <div class="notice" id="notice-5" hidden>
+      <span class="label">Did you see?</span>
+      <ul><li>Beep got <code>get</code> wrong. We skipped "will" and "me" in step 2, so Beep could not tell it was an action.</li></ul>
+    </div>
+    <div class="card own" data-own="5"></div>
+  </section>
+
+  <section class="step" id="step-6" aria-labelledby="h6s" hidden>
+    <h2 id="h6s">Find the important names</h2>
+    <p class="lede">Last step! Beep looks for names of people, places and groups. It glues the name words together and gives each name a label.</p>
+    <div class="card" data-guess="6">
+      <span class="label">Guess first</span>
+      <p class="q">What does Beep think the <code>Miami Marathon</code> is?</p>
+      <div class="opts"></div><p class="fb"></p>
+    </div>
+    <div class="card" id="stage-6"></div>
+    <div class="notice" id="notice-6" hidden>
+      <span class="label">Did you see?</span>
+      <ul><li>Beep found Coach Kale. But it thinks the Miami Marathon is a person! Beep is still learning.</li></ul>
+    </div>
+    <div class="card own" data-own="6"></div>
+  </section>
+
+  <section class="step" id="step-7" aria-labelledby="h7s" hidden>
+    <h2 id="h7s">The finish line</h2>
+    <p class="lede">You taught Beep six steps. Each step uses what the step before it made.</p>
+    <div class="finish">
+      <div class="card"><span class="num">Step 1</span><h3>Cut into pieces</h3><p>One long line becomes 48 pieces.</p></div>
+      <div class="card"><span class="num">Step 2</span><h3>Skip boring words</h3><p>48 pieces become 27.</p></div>
+      <div class="card"><span class="num">Step 3</span><h3>Chop the endings</h3><p><code>running</code> becomes <code>run</code>.</p></div>
+      <div class="card"><span class="num">Step 4</span><h3>Look it up</h3><p><code>miles</code> becomes <code>mile</code>.</p></div>
+      <div class="card"><span class="num">Step 5</span><h3>Give each word a job</h3><p><code>Kale</code> gets a name sticker.</p></div>
+      <div class="card"><span class="num">Step 6</span><h3>Find the names</h3><p><code>Coach Kale</code> is a person.</p></div>
+    </div>
+    <p class="lede">Beep still does not know what a marathon is. It just has neat pieces with labels. Next, Beep will learn to turn those pieces into numbers.</p>
+  </section>
+
+  <div class="foot">
+    <button class="btn ghost" id="back" type="button">Back</button>
+    <button class="btn" id="next" type="button">Next step</button>
+  </div>
+</div>
+
+<script>
+/* Small copies of the rule based steps from the lesson, so a typed sentence can run in the page. */
+var Engine = (function () {
+  /* ---------- sentence splitting (simplified stand in for Punkt) ---------- */
+  var ABBR = {};
+  ('dr mr mrs ms prof sr jr st mt vs etc inc ltd co corp gen col lt sgt capt rev hon gov sen rep no fig vol approx dept est ' +
+   'jan feb mar apr jun jul aug sep sept oct nov dec mon tue tues wed thu thurs fri sat sun e.g i.e a.m p.m')
+    .split(' ').forEach(function (a) { ABBR[a] = 1; });
+
+  function splitSentences(text) {
+    var t = text.replace(/\s+/g, ' ').trim();
+    if (!t) return [];
+    var out = [], start = 0, re = /[.!?]+["')\]]*\s+/g, m;
+    while ((m = re.exec(t))) {
+      var end = m.index + m[0].length;
+      var next = t.charAt(end);
+      if (!next) break;
+      var before = t.slice(start, m.index);
+      var word = before.split(' ').pop().replace(/^[("'\[]+/, '');
+      var isPeriod = m[0].charAt(0) === '.';
+      if (/[a-z]/.test(next)) continue;              /* next word is lowercase */
+      if (isPeriod) {
+        var w = word.toLowerCase();
+        if (ABBR[w]) continue;                       /* Dr. Mr. etc. */
+        if (/^[A-Za-z]$/.test(word)) continue;       /* a single initial */
+        if (word.indexOf('.') !== -1) continue;      /* U.S. Ph.D. */
+      }
+      out.push(t.slice(start, end).trim());
+      start = end;
+    }
+    var rest = t.slice(start).trim();
+    if (rest) out.push(rest);
+    return out;
+  }
+
+  /* ---------- word tokenizing (the Treebank rules NLTK uses) ---------- */
+  function tokenizeSentence(s) {
+    var t = s;
+    t = t.replace(/^"/, '``');
+    t = t.replace(/([ (\[{<])"/g, '$1 `` ');
+    t = t.replace(/(``)/g, ' $1 ');
+    t = t.replace(/([:,])([^\d])/g, ' $1 $2');
+    t = t.replace(/([:,])$/g, ' $1 ');
+    t = t.replace(/\.\.\./g, ' ... ');
+    t = t.replace(/[;@#$%&]/g, ' $& ');
+    t = t.replace(/([^.])(\.)([\])}>"']*)\s*$/, '$1 $2$3 ');
+    t = t.replace(/[?!]/g, ' $& ');
+    t = t.replace(/([^'])' /g, "$1 ' ");
+    t = t.replace(/[\]\[(){}<>]/g, ' $& ');
+    t = t.replace(/--/g, ' -- ');
+    t = ' ' + t + ' ';
+    t = t.replace(/"/g, " '' ");
+    t = t.replace(/(\S)('')/g, '$1 $2 ');
+    t = t.replace(/([^' ])('[sS]|'[mM]|'[dD]|') /g, '$1 $2 ');
+    t = t.replace(/([^' ])('ll|'LL|'re|'RE|'ve|'VE|n't|N'T) /g, '$1 $2 ');
+    t = t.replace(/\b(can)(not)\b/gi, ' $1 $2 ');
+    t = t.replace(/\b(gon)(na)\b/gi, ' $1 $2 ');
+    t = t.replace(/\b(got)(ta)\b/gi, ' $1 $2 ');
+    t = t.replace(/\b(wan)(na)\b/gi, ' $1 $2 ');
+    t = t.replace(/\b(gim)(me)\b/gi, ' $1 $2 ');
+    t = t.replace(/\b(lem)(me)\b/gi, ' $1 $2 ');
+    return t.split(/\s+/).filter(Boolean);
+  }
+
+  function normalize(text) {
+    return String(text).replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+      .replace(/[–—]/g, ' -- ').replace(/…/g, '...');
+  }
+
+  function tokenize(text) {
+    var sents = splitSentences(normalize(text));
+    var words = [];
+    sents.forEach(function (s) { words = words.concat(tokenizeSentence(s)); });
+    return { sentences: sents, words: words };
+  }
+
+  /* ---------- Porter stemmer, NLTK flavour ---------- */
+  var POOL = { sky: 'sky', skies: 'sky', dying: 'die', lying: 'lie', tying: 'tie', news: 'news',
+    innings: 'inning', inning: 'inning', outings: 'outing', outing: 'outing', cannings: 'canning',
+    canning: 'canning', howe: 'howe', proceed: 'proceed', exceed: 'exceed', succeed: 'succeed' };
+
+  function isCons(w, i) {
+    var c = w.charAt(i);
+    if ('aeiou'.indexOf(c) !== -1) return false;
+    if (c === 'y') return i === 0 ? true : !isCons(w, i - 1);
+    return true;
+  }
+  function measure(stem) {
+    var cv = '';
+    for (var i = 0; i < stem.length; i++) cv += isCons(stem, i) ? 'c' : 'v';
+    return cv.split('vc').length - 1;
+  }
+  function posM(stem) { return measure(stem) > 0; }
+  function gt1(stem) { return measure(stem) > 1; }
+  function hasVowel(stem) {
+    for (var i = 0; i < stem.length; i++) if (!isCons(stem, i)) return true;
+    return false;
+  }
+  function endsDouble(w) {
+    var n = w.length;
+    return n >= 2 && w.charAt(n - 1) === w.charAt(n - 2) && isCons(w, n - 1);
+  }
+  function endsCVC(w) {
+    var n = w.length;
+    return (n >= 3 && isCons(w, n - 3) && !isCons(w, n - 2) && isCons(w, n - 1) &&
+            'wxy'.indexOf(w.charAt(n - 1)) === -1) ||
+           (n === 2 && !isCons(w, 0) && isCons(w, 1));
+  }
+  function ends(w, s) { return s.length <= w.length && w.slice(w.length - s.length) === s; }
+  function applyRules(word, rules) {
+    for (var i = 0; i < rules.length; i++) {
+      var suf = rules[i][0], rep = rules[i][1], cond = rules[i][2], stem;
+      if (suf === '*d') {
+        if (endsDouble(word)) {
+          stem = word.slice(0, -2);
+          return (!cond || cond(stem)) ? stem + rep : word;
+        }
+        continue;
+      }
+      if (ends(word, suf)) {
+        stem = suf === '' ? word : word.slice(0, -suf.length);
+        return (!cond || cond(stem)) ? stem + rep : word;
+      }
+    }
+    return word;
+  }
+  function step1a(w) {
+    if (ends(w, 'ies') && w.length === 4) return w.slice(0, -3) + 'ie';
+    return applyRules(w, [['sses', 'ss'], ['ies', 'i'], ['ss', 'ss'], ['s', '']]);
+  }
+  function step1b(w) {
+    if (ends(w, 'ied')) return w.slice(0, -3) + (w.length === 4 ? 'ie' : 'i');
+    if (ends(w, 'eed')) {
+      var st = w.slice(0, -3);
+      return measure(st) > 0 ? st + 'ee' : w;
+    }
+    var inter = null, sufs = ['ed', 'ing'];
+    for (var i = 0; i < sufs.length; i++) {
+      if (ends(w, sufs[i])) {
+        var cand = w.slice(0, -sufs[i].length);
+        if (hasVowel(cand)) { inter = cand; break; }
+      }
+    }
+    if (inter === null) return w;
+    var last = inter.charAt(inter.length - 1);
+    return applyRules(inter, [
+      ['at', 'ate'], ['bl', 'ble'], ['iz', 'ize'],
+      ['*d', last, function () { return 'lsz'.indexOf(last) === -1; }],
+      ['', 'e', function (stem) { return measure(stem) === 1 && endsCVC(stem); }]
+    ]);
+  }
+  function step1c(w) {
+    return applyRules(w, [['y', 'i', function (stem) {
+      return stem.length > 1 && isCons(stem, stem.length - 1);
+    }]]);
+  }
+  function step2(w) {
+    if (ends(w, 'alli') && posM(w.slice(0, -4))) return step2(w.slice(0, -4) + 'al');
+    return applyRules(w, [
+      ['ational', 'ate', posM], ['tional', 'tion', posM], ['enci', 'ence', posM], ['anci', 'ance', posM],
+      ['izer', 'ize', posM], ['bli', 'ble', posM], ['alli', 'al', posM], ['entli', 'ent', posM],
+      ['eli', 'e', posM], ['ousli', 'ous', posM], ['ization', 'ize', posM], ['ation', 'ate', posM],
+      ['ator', 'ate', posM], ['alism', 'al', posM], ['iveness', 'ive', posM], ['fulness', 'ful', posM],
+      ['ousness', 'ous', posM], ['aliti', 'al', posM], ['iviti', 'ive', posM], ['biliti', 'ble', posM],
+      ['fulli', 'ful', posM],
+      ['logi', 'log', function () { return posM(w.slice(0, -3)); }]
+    ]);
+  }
+  function step3(w) {
+    return applyRules(w, [['icate', 'ic', posM], ['ative', '', posM], ['alize', 'al', posM],
+      ['iciti', 'ic', posM], ['ical', 'ic', posM], ['ful', '', posM], ['ness', '', posM]]);
+  }
+  function step4(w) {
+    return applyRules(w, [['al', '', gt1], ['ance', '', gt1], ['ence', '', gt1], ['er', '', gt1],
+      ['ic', '', gt1], ['able', '', gt1], ['ible', '', gt1], ['ant', '', gt1], ['ement', '', gt1],
+      ['ment', '', gt1], ['ent', '', gt1],
+      ['ion', '', function (stem) { return gt1(stem) && 'st'.indexOf(stem.charAt(stem.length - 1)) !== -1 && stem.length > 0; }],
+      ['ou', '', gt1], ['ism', '', gt1], ['ate', '', gt1], ['iti', '', gt1], ['ous', '', gt1],
+      ['ive', '', gt1], ['ize', '', gt1]]);
+  }
+  function step5a(w) {
+    if (ends(w, 'e')) {
+      var stem = w.slice(0, -1), m = measure(stem);
+      if (m > 1) return stem;
+      if (m === 1 && !endsCVC(stem)) return stem;
+    }
+    return w;
+  }
+  function step5b(w) {
+    return applyRules(w, [['ll', 'l', function () { return measure(w.slice(0, -1)) > 1; }]]);
+  }
+  function porter(word) {
+    var s = word.toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(POOL, word)) return POOL[s];
+    if (word.length <= 2) return s;
+    return step5b(step5a(step4(step3(step2(step1c(step1b(step1a(s))))))));
+  }
+
+  return { tokenize: tokenize, splitSentences: splitSentences, tokenizeSentence: tokenizeSentence, porter: porter };
+})();
+
+
+var D = {"text": "I am planning to run the Miami Marathon in 2027. I have a goal of 3:25 and I'm hoping Coach Kale's training will get me there.\nAt the moment in the training block coach Kale has me running about 30 miles on average.", "sents": ["I am planning to run the Miami Marathon in 2027.", "I have a goal of 3:25 and I'm hoping Coach Kale's training will get me there.", "At the moment in the training block coach Kale has me running about 30 miles on average."], "words": ["I", "am", "planning", "to", "run", "the", "Miami", "Marathon", "in", "2027", ".", "I", "have", "a", "goal", "of", "3:25", "and", "I", "'m", "hoping", "Coach", "Kale", "'s", "training", "will", "get", "me", "there", ".", "At", "the", "moment", "in", "the", "training", "block", "coach", "Kale", "has", "me", "running", "about", "30", "miles", "on", "average", "."], "clean": ["I", "planning", "run", "Miami", "Marathon", "2027", "I", "goal", "3:25", "I", "'m", "hoping", "Coach", "Kale", "'s", "training", "get", "At", "moment", "training", "block", "coach", "Kale", "running", "30", "miles", "average"], "porter": ["i", "plan", "run", "miami", "marathon", "2027", "i", "goal", "3:25", "i", "'m", "hope", "coach", "kale", "'s", "train", "get", "at", "moment", "train", "block", "coach", "kale", "run", "30", "mile", "averag"], "lemma": [["miles", "mile", null], ["training", "training", "train"], ["planning", "planning", "plan"]], "pos": [["I", "PRP"], ["planning", "VBG"], ["run", "VBN"], ["Miami", "NNP"], ["Marathon", "NNP"], ["2027", "CD"], ["I", "PRP"], ["goal", "NN"], ["3:25", "CD"], ["I", "PRP"], ["'m", "VBP"], ["hoping", "VBG"], ["Coach", "NNP"], ["Kale", "NNP"], ["'s", "POS"], ["training", "NN"], ["get", "NN"], ["At", "IN"], ["moment", "NN"], ["training", "NN"], ["block", "NN"], ["coach", "NN"], ["Kale", "NNP"], ["running", "VBG"], ["30", "CD"], ["miles", "NNS"], ["average", "RB"]], "ner": [{"label": null, "tokens": [["I", "PRP"]]}, {"label": null, "tokens": [["planning", "VBG"]]}, {"label": null, "tokens": [["run", "VBN"]]}, {"label": "PERSON", "tokens": [["Miami", "NNP"], ["Marathon", "NNP"]]}, {"label": null, "tokens": [["2027", "CD"]]}, {"label": null, "tokens": [["I", "PRP"]]}, {"label": null, "tokens": [["goal", "NN"]]}, {"label": null, "tokens": [["3:25", "CD"]]}, {"label": null, "tokens": [["I", "PRP"]]}, {"label": null, "tokens": [["'m", "VBP"]]}, {"label": null, "tokens": [["hoping", "VBG"]]}, {"label": "PERSON", "tokens": [["Coach", "NNP"], ["Kale", "NNP"]]}, {"label": null, "tokens": [["'s", "POS"]]}, {"label": null, "tokens": [["training", "NN"]]}, {"label": null, "tokens": [["get", "NN"]]}, {"label": null, "tokens": [["At", "IN"]]}, {"label": null, "tokens": [["moment", "NN"]]}, {"label": null, "tokens": [["training", "NN"]]}, {"label": null, "tokens": [["block", "NN"]]}, {"label": null, "tokens": [["coach", "NN"]]}, {"label": "PERSON", "tokens": [["Kale", "NNP"]]}, {"label": null, "tokens": [["running", "VBG"]]}, {"label": null, "tokens": [["30", "CD"]]}, {"label": null, "tokens": [["miles", "NNS"]]}, {"label": null, "tokens": [["average", "RB"]]}], "stop": ["a", "about", "above", "after", "again", "against", "ain", "all", "am", "an", "and", "any", "are", "aren", "aren't", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "can", "couldn", "couldn't", "d", "did", "didn", "didn't", "do", "does", "doesn", "doesn't", "doing", "don", "don't", "down", "during", "each", "few", "for", "from", "further", "had", "hadn", "hadn't", "has", "hasn", "hasn't", "have", "haven", "haven't", "having", "he", "he'd", "he'll", "her", "here", "hers", "herself", "he's", "him", "himself", "his", "how", "i", "i'd", "if", "i'll", "i'm", "in", "into", "is", "isn", "isn't", "it", "it'd", "it'll", "it's", "its", "itself", "i've", "just", "ll", "m", "ma", "me", "mightn", "mightn't", "more", "most", "mustn", "mustn't", "my", "myself", "needn", "needn't", "no", "nor", "not", "now", "o", "of", "off", "on", "once", "only", "or", "other", "our", "ours", "ourselves", "out", "over", "own", "re", "s", "same", "shan", "shan't", "she", "she'd", "she'll", "she's", "should", "shouldn", "shouldn't", "should've", "so", "some", "such", "t", "than", "that", "that'll", "the", "their", "theirs", "them", "themselves", "then", "there", "these", "they", "they'd", "they'll", "they're", "they've", "this", "those", "through", "to", "too", "under", "until", "up", "ve", "very", "was", "wasn", "wasn't", "we", "we'd", "we'll", "we're", "were", "weren", "weren't", "we've", "what", "when", "where", "which", "while", "who", "whom", "why", "will", "with", "won", "won't", "wouldn", "wouldn't", "y", "you", "you'd", "you'll", "your", "you're", "yours", "yourself", "yourselves", "you've"], "punct": "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"};
+
+(function () {
+  var NAMES = ['Cut into pieces', 'Skip boring words', 'Chop the endings', 'Look it up', 'Give words a job', 'Find the names', 'Finish line'];
+  var HELLO = [
+    "Hi, I'm Beep! Let's chop this note into pieces.",
+    "Some words are everywhere. Let's skip them!",
+    "Running, run... same idea! Let's chop the endings.",
+    "Let's use a dictionary this time.",
+    "Every word has a job. Let's put stickers on them!",
+    "Last step! Let's find the names of real things.",
+    "You did it! You taught me to read!"
+  ];
+  var DONE = [
+    "Look at all those pieces! 48 of them.",
+    "48 pieces in, 27 left. Much tidier!",
+    "Chop chop! Now running and run match.",
+    "The dictionary only gives real words.",
+    "Stickers on! Tap a word to see its job.",
+    "I found 3 names! One of them is a bit wrong..."
+  ];
+  var cur = 1, done = {}, own = 'The runners were running faster in their new shoes.';
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function isDot(w) { return !/[A-Za-z0-9]/.test(w); }
+  function piece(w, cls, i) { var s = el('span', 'p' + (isDot(w) ? ' dot' : '') + (cls ? ' ' + cls : ''), w); s.style.setProperty('--i', Math.min(i || 0, 30)); return s; }
+  function row(list, fn) { var b = el('div', 'pieces pop'); list.forEach(function (w, i) { b.appendChild(piece(w, fn ? fn(w, i) : '', i)); }); return b; }
+  function btn(t, fn, ghost) { var b = el('button', 'btn' + (ghost ? ' ghost' : ''), t); b.type = 'button'; b.addEventListener('click', fn); return b; }
+  function head(l, c) { var h = el('div', 'head'); h.appendChild(el('span', 'label', l)); if (c) h.appendChild(el('span', 'count', c)); return h; }
+  function stage(n) { var s = document.getElementById('stage-' + n); s.textContent = ''; return s; }
+  function btns(s) { var a = el('div', 'btns'); s.appendChild(a); return a; }
+
+  var beep = document.getElementById('beep'), bubble = document.getElementById('bubble'), moodT;
+  function say(text, mood) {
+    bubble.textContent = text;
+    bubble.classList.remove('talk'); void bubble.offsetWidth; bubble.classList.add('talk');
+    beep.className = 'beep'; void beep.offsetWidth;
+    if (mood) beep.className = 'beep ' + mood;
+    clearTimeout(moodT);
+    if (mood) moodT = setTimeout(function () { beep.className = 'beep'; }, 2200);
+  }
+  function finish(n) {
+    done[n] = true;
+    document.getElementById('notice-' + n).hidden = false;
+    say(DONE[n - 1], 'happy');
+    renderTrack();
+  }
+
+  /* guesses */
+  var G = {
+    1: { o: ['One piece', 'Three pieces'], r: 0, why: '3:25 is a time, so Beep keeps it together.' },
+    2: { o: ['the', 'am', 'I', 'to'], r: 2, why: 'I has a capital letter, so it sneaks past the list.' },
+    3: { o: ['average', 'averag', 'aver'], r: 1, why: 'Beep chops off the e and gets averag.' },
+    4: { o: ['train', 'training', 'trained'], r: 1, why: 'With no hint, Beep keeps training the same.' },
+    5: { o: ['Action', 'Thing', 'Number'], r: 1, why: 'Beep made a mistake and called get a thing!' },
+    6: { o: ['A place', 'A person', 'A group'], r: 1, why: 'Beep thinks it is a person. Silly Beep, it is a race!' }
+  };
+  function setupGuess(box) {
+    var n = box.getAttribute('data-guess'), g = G[n], opts = box.querySelector('.opts'), fb = box.querySelector('.fb');
+    g.o.forEach(function (o, i) {
+      var b = el('button', '', o); b.type = 'button';
+      b.addEventListener('click', function () {
+        var all = opts.querySelectorAll('button');
+        for (var k = 0; k < all.length; k++) all[k].disabled = true;
+        all[g.r].classList.add('right');
+        var ok = i === g.r;
+        if (!ok) b.classList.add('wrong');
+        fb.textContent = '';
+        fb.appendChild(el('b', ok ? 'ok' : 'no', ok ? 'You got it! ' : 'Good try! '));
+        fb.appendChild(document.createTextNode('The answer is "' + g.o[g.r] + '". ' + g.why));
+        say(ok ? 'Yes! You got it!' : 'Good try! Now press the big button to see.', ok ? 'happy' : 'oops');
+      });
+      opts.appendChild(b);
+    });
+  }
+
+  /* step 1 */
+  var s1 = 0, TEXT = D.text.replace(/\s+/g, ' ').trim();
+  function render1() {
+    var s = stage(1), a;
+    if (s1 === 0) {
+      s.appendChild(head("The runner's note", 'one long line'));
+      s.appendChild(el('p', 'raw', TEXT));
+      btns(s).appendChild(btn('Cut into sentences', function () { s1 = 1; render1(); say('Snip, snip! 3 sentences.', 'happy'); }));
+    } else if (s1 === 1) {
+      s.appendChild(head('Sentences', D.sents.length + ' sentences'));
+      var box = el('div', 'sents pop');
+      D.sents.forEach(function (t, i) { var d = el('div', 'sent'); d.style.setProperty('--i', i * 3); d.appendChild(el('span', 'n', 'Sentence ' + (i + 1))); d.appendChild(el('p', 'raw', t)); box.appendChild(d); });
+      s.appendChild(box);
+      a = btns(s);
+      a.appendChild(btn('Cut into words', function () { s1 = 2; render1(); finish(1); }));
+      a.appendChild(btn('Start over', function () { s1 = 0; render1(); }, true));
+    } else {
+      s.appendChild(head('Pieces', D.words.length + ' pieces'));
+      s.appendChild(row(D.words, function (w) { return (w === '3:25' || w.charAt(0) === "'") ? 'sun' : ''; }));
+      s.appendChild(el('p', 'cap', 'Yellow pieces are worth a look. Dotted pieces are dots.'));
+      btns(s).appendChild(btn('Start over', function () { s1 = 0; render1(); }, true));
+    }
+  }
+
+  /* step 2 */
+  var s2 = 0;
+  function keep(w) { return D.punct.indexOf(w) === -1 && D.stop.indexOf(w) === -1; }
+  function render2() {
+    var s = stage(2), a;
+    if (s2 === 0) {
+      s.appendChild(head('All the pieces', D.words.length + ' pieces'));
+      s.appendChild(row(D.words));
+      btns(s).appendChild(btn('Skip the boring words', function () { s2 = 1; render2(); finish(2); }));
+    } else {
+      s.appendChild(head('Skipped', D.words.length + ' in, ' + D.clean.length + ' left'));
+      var b = el('div', 'pieces');
+      D.words.forEach(function (w, i) { b.appendChild(piece(w, keep(w) ? (w === 'I' ? 'sun' : '') : 'skip fly', i)); });
+      s.appendChild(b);
+      s.appendChild(el('span', 'rowlabel', 'What Beep kept'));
+      s.appendChild(row(D.clean, function (w) { return w === 'I' ? 'sun' : ''; }));
+      btns(s).appendChild(btn('Start over', function () { s2 = 0; render2(); }, true));
+    }
+  }
+
+  /* step 3: chopped endings fall off */
+  function chop(w, stem, i) {
+    var st = el('span', 'stack');
+    st.style.setProperty('--i', Math.min(i, 30));
+    st.appendChild(el('span', 'was', w));
+    var lw = w.toLowerCase(), p = el('span', 'p');
+    if (lw === stem) { p.textContent = stem; }
+    else if (lw.indexOf(stem) === 0) {
+      p.className = 'p sun';
+      p.appendChild(document.createTextNode(stem));
+      var c = el('span', 'cut fall', lw.slice(stem.length));
+      c.style.setProperty('--i', Math.min(i, 30));
+      c.addEventListener('animationend', function () { c.classList.add('gone'); });
+      p.appendChild(c);
+    } else {
+      p.className = 'p sun flip'; p.textContent = stem; p.style.setProperty('--i', Math.min(i, 30));
+    }
+    st.appendChild(p);
+    return st;
+  }
+  function chopRow(words, stems) { var b = el('div', 'pieces pop'); words.forEach(function (w, i) { b.appendChild(chop(w, stems[i], i)); }); return b; }
+  var s3 = 0;
+  function render3() {
+    var s = stage(3);
+    if (s3 === 0) {
+      s.appendChild(head('The words Beep kept', D.clean.length + ' words'));
+      s.appendChild(row(D.clean));
+      btns(s).appendChild(btn('Chop!', function () { s3 = 1; render3(); finish(3); }));
+    } else {
+      var changed = D.clean.filter(function (w, i) { return w.toLowerCase() !== D.porter[i]; }).length;
+      s.appendChild(head('Chopped', changed + ' words changed'));
+      s.appendChild(chopRow(D.clean, D.porter));
+      s.appendChild(el('p', 'cap', 'Small words show what went in. Watch the endings fall off!'));
+      btns(s).appendChild(btn('Start over', function () { s3 = 0; render3(); }, true));
+    }
+  }
+
+  /* step 4 */
+  var s4 = 0;
+  function render4() {
+    var s = stage(4);
+    var words = D.lemma.map(function (r) { return r[0]; });
+    if (s4 === 0) {
+      s.appendChild(head('Words to look up', '3 words'));
+      s.appendChild(row(words));
+      btns(s).appendChild(btn('Look them up', function () { s4 = 1; render4(); finish(4); }));
+    } else {
+      s.appendChild(head('The dictionary says', ''));
+      var box = el('div', 'looks');
+      D.lemma.forEach(function (r, i) {
+        var line = el('div', 'look');
+        line.appendChild(piece(r[0], '', 0));
+        line.appendChild(el('span', 'arrow', 'no hint'));
+        var a = piece(r[1], (r[1] !== r[0] ? 'sun ' : '') + 'flip', i * 2); line.appendChild(a);
+        if (r[2]) {
+          line.appendChild(el('span', 'arrow', 'hint: action'));
+          line.appendChild(piece(r[2], 'sun flip', i * 2 + 1));
+        }
+        box.appendChild(line);
+      });
+      s.appendChild(box);
+      s.appendChild(el('p', 'cap', "In the notebook, the action hint is written pos='v'."));
+      btns(s).appendChild(btn('Start over', function () { s4 = 0; render4(); }, true));
+    }
+  }
+
+  /* step 5 */
+  function job(t) {
+    if (/^NNP/.test(t)) return ['Name', 't-name'];
+    if (/^NN/.test(t)) return ['Thing', 't-thing'];
+    if (/^(VB|MD)/.test(t)) return ['Action', 't-action'];
+    if (t === 'CD') return ['Number', 't-num'];
+    if (/^(JJ|RB)/.test(t)) return ['Describing', 't-desc'];
+    if (/^PRP/.test(t)) return ['Pronoun', 't-other'];
+    if (t === 'POS') return ['Belongs to', 't-other'];
+    return ['Helper', 't-other'];
+  }
+  var JOBTEXT = { Name: 'the name of someone or something', Thing: 'a thing', Action: 'something you do', Number: 'a number',
+    Describing: 'it tells more about something', Pronoun: 'a word that stands in for a name, like I', 'Belongs to': 'it shows something belongs to someone', Helper: 'a small helper word' };
+  var s5 = 0, pick = -1;
+  function render5() {
+    var s = stage(5);
+    if (s5 === 0) {
+      s.appendChild(head('The words Beep kept', D.pos.length + ' words'));
+      s.appendChild(row(D.pos.map(function (x) { return x[0]; })));
+      btns(s).appendChild(btn('Add the stickers', function () { s5 = 1; render5(); finish(5); }));
+    } else {
+      s.appendChild(head('Stickers on', D.pos.length + ' words'));
+      var b = el('div', 'pieces');
+      D.pos.forEach(function (x, i) {
+        var j = job(x[1]), st = el('span', 'stack');
+        var p = el('button', 'p', x[0]); p.type = 'button';
+        p.setAttribute('aria-pressed', String(i === pick));
+        p.addEventListener('click', function () { pick = i; render5(); });
+        st.appendChild(p);
+        var tag = el('span', 'sticker ' + j[1] + (pick === -1 ? ' drop' : ''), j[0]);
+        tag.style.setProperty('--i', Math.min(i, 30));
+        st.appendChild(tag);
+        b.appendChild(st);
+      });
+      s.appendChild(b);
+      var d = el('p', 'detail');
+      if (pick >= 0) {
+        var x = D.pos[pick], j = job(x[1]);
+        d.appendChild(el('code', '', x[0]));
+        d.appendChild(document.createTextNode(' got a ' + j[0] + ' sticker. That means ' + JOBTEXT[j[0]] + '. The grown up code is ' + x[1] + '.'));
+      } else { d.className = 'detail cap'; d.textContent = 'Tap any word to learn about its sticker.'; }
+      s.appendChild(d);
+      btns(s).appendChild(btn('Start over', function () { s5 = 0; pick = -1; render5(); }, true));
+    }
+  }
+
+  /* step 6 */
+  var s6 = 0, KIND = { PERSON: 'Person', ORGANIZATION: 'Group', LOCATION: 'Place', GPE: 'Place' };
+  function render6() {
+    var s = stage(6);
+    if (s6 === 0) {
+      s.appendChild(head('Words with stickers', D.pos.length + ' words'));
+      s.appendChild(row(D.pos.map(function (x) { return x[0]; })));
+      btns(s).appendChild(btn('Find the names', function () { s6 = 1; render6(); finish(6); }));
+    } else {
+      var found = D.ner.filter(function (g) { return g.label; }).length;
+      s.appendChild(head('Names Beep found', found + ' names'));
+      var b = el('div', 'pieces'), gi = 0;
+      D.ner.forEach(function (g, i) {
+        if (!g.label) { var p = piece(g.tokens[0][0], 'skip', 0); p.style.textDecoration = 'none'; b.appendChild(p); return; }
+        var gr = el('span', 'group glue'); gr.style.setProperty('--i', gi++ * 4);
+        gr.appendChild(el('span', 'badge', KIND[g.label] || g.label));
+        var gp = el('span', 'gp'); g.tokens.forEach(function (t) { gp.appendChild(el('span', 'p', t[0])); });
+        gr.appendChild(gp); b.appendChild(gr);
+      });
+      s.appendChild(b);
+      s.appendChild(el('p', 'cap', 'The faded words are not names. In the notebook, Person is written PERSON.'));
+      btns(s).appendChild(btn('Start over', function () { s6 = 0; render6(); }, true));
+    }
+  }
+
+  /* try your own */
+  var SNIP = {
+    4: 'words = nltk.word_tokenize(text)\nprint([lemma.lemmatize(w) for w in words])',
+    5: 'print(nltk.pos_tag(nltk.word_tokenize(text)))',
+    6: 'print(nltk.ne_chunk(nltk.pos_tag(nltk.word_tokenize(text))))'
+  };
+  function setupOwn(box) {
+    var n = +box.getAttribute('data-own'), id = 'own-' + n;
+    var lab = el('label', '', n <= 3 ? 'Try your own sentence' : 'Try your own sentence in the notebook'); lab.setAttribute('for', id);
+    var inp = el('input'); inp.id = id; inp.type = 'text'; inp.value = own; inp.autocomplete = 'off'; inp.spellcheck = false;
+    inp.addEventListener('input', function () {
+      own = inp.value;
+      var all = document.querySelectorAll('.own input');
+      for (var i = 0; i < all.length; i++) if (all[i] !== inp) all[i].value = own;
+      renderOwnAll();
+    });
+    box.appendChild(lab); box.appendChild(inp);
+    var out = el('div', 'own-out'); out.style.display = 'flex'; out.style.flexDirection = 'column'; out.style.gap = '10px';
+    box.appendChild(out);
+  }
+  function renderOwnAll() { var b = document.querySelectorAll('.own'); for (var i = 0; i < b.length; i++) renderOwn(b[i]); }
+  function renderOwn(box) {
+    var n = +box.getAttribute('data-own'), out = box.querySelector('.own-out');
+    out.textContent = '';
+    var t = Engine.tokenize(own), w = t.words;
+    if (n <= 3 && !w.length) { out.appendChild(el('p', 'cap', 'Type a sentence and watch Beep work.')); return; }
+    if (n === 1) {
+      out.appendChild(el('span', 'count', w.length + ' pieces'));
+      out.appendChild(row(w));
+    } else if (n === 2) {
+      out.appendChild(el('span', 'count', w.length + ' in, ' + w.filter(keep).length + ' left'));
+      var b = el('div', 'pieces'); w.forEach(function (x, i) { b.appendChild(piece(x, keep(x) ? '' : 'skip', i)); }); out.appendChild(b);
+    } else if (n === 3) {
+      var b3 = el('div', 'pieces');
+      w.forEach(function (x, i) {
+        var st = el('span', 'stack'); st.appendChild(el('span', 'was', x));
+        var stem = Engine.porter(x);
+        st.appendChild(el('span', 'p' + (stem !== x.toLowerCase() ? ' sun' : ''), stem));
+        b3.appendChild(st);
+      });
+      out.appendChild(b3);
+    } else {
+      out.appendChild(el('p', 'cap', 'Beep needs the notebook for this step. Paste this into a new cell.'));
+      var cb = el('div', 'codebox'), pre = el('pre');
+      pre.textContent = 'text = ' + JSON.stringify(own) + '\n' + SNIP[n];
+      var copy = el('button', 'copy', 'Copy'); copy.type = 'button';
+      copy.addEventListener('click', function () {
+        var ok = function () { copy.textContent = 'Copied'; setTimeout(function () { copy.textContent = 'Copy'; }, 1400); };
+        var fb = function () { var r = document.createRange(); r.selectNodeContents(pre); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); copy.textContent = 'Selected'; };
+        try { navigator.clipboard.writeText(pre.textContent).then(ok, fb); } catch (e) { fb(); }
+      });
+      cb.appendChild(pre); cb.appendChild(copy); out.appendChild(cb);
+    }
+  }
+
+  /* track and paging */
+  function renderTrack() {
+    var ol = document.getElementById('track'); ol.textContent = '';
+    var count = 0;
+    for (var k = 1; k <= 6; k++) if (done[k]) count++;
+    NAMES.forEach(function (name, i) {
+      var n = i + 1, li = el('li'), b = el('button', done[n] || (n === 7 && count === 6) ? 'done' : '', n <= 6 ? String(n) : '⚑');
+      b.type = 'button';
+      b.setAttribute('aria-label', (n <= 6 ? 'Step ' + n + ', ' : '') + name);
+      if (n === cur) b.setAttribute('aria-current', 'step');
+      b.addEventListener('click', function () { go(n); });
+      li.appendChild(b); ol.appendChild(li);
+    });
+    document.getElementById('fill').style.width = 'calc((100% - 44px) * ' + ((cur - 1) / 6) + ')';
+    document.getElementById('stepname').textContent = cur <= 6 ? 'Step ' + cur + ': ' + NAMES[cur - 1] : NAMES[6];
+  }
+  function go(n, scroll) {
+    cur = Math.max(1, Math.min(7, n));
+    for (var i = 1; i <= 7; i++) document.getElementById('step-' + i).hidden = i !== cur;
+    document.getElementById('back').hidden = cur === 1;
+    var nx = document.getElementById('next'); nx.hidden = cur === 7;
+    nx.textContent = cur === 6 ? 'Go to the finish line' : 'Next step';
+    renderTrack();
+    say(HELLO[cur - 1], cur === 7 ? 'happy' : null);
+    if (scroll) { try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (e) { window.scrollTo(0, 0); } }
+  }
+
+  var gs = document.querySelectorAll('[data-guess]');
+  for (var i = 0; i < gs.length; i++) setupGuess(gs[i]);
+  render1(); render2(); render3(); render4(); render5(); render6();
+  var os = document.querySelectorAll('.own');
+  for (var j = 0; j < os.length; j++) setupOwn(os[j]);
+  renderOwnAll();
+  document.getElementById('back').addEventListener('click', function () { go(cur - 1, true); });
+  document.getElementById('next').addEventListener('click', function () { go(cur + 1, true); });
+  go(1);
+})();
+</script>
